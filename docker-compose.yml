@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=sana3ti
+      - POSTGRES_USER=sana3ti_user
+      - POSTGRES_PASSWORD=password
+    networks:
+      - sana3ti_network
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgres://sana3ti_user:password@db:5432/sana3ti
+    networks:
+      - sana3ti_network
+
+networks:
+  sana3ti_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
