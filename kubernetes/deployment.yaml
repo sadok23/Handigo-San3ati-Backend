@@ -1,28 +1,7 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-secret
-type: Opaque
-data:
-  POSTGRES_DB: dGVzdGRi
-  POSTGRES_USER: dGVzdHVzZXI=
-  POSTGRES_PASSWORD: dGVzdHBhc3N3b3Jk
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres-deployment
+  name: postgres
 spec:
   replicas: 1
   selector:
@@ -35,12 +14,19 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:latest
+          image: postgres:13
           ports:
             - containerPort: 5432
-          envFrom:
-            - secretRef:
-                name: postgres-secret
+          env:
+            - name: POSTGRES_DB
+              value: "sana3ti"
+            - name: POSTGRES_USER
+              value: "sadok"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
@@ -48,6 +34,7 @@ spec:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: postgres-pvc
+
 ---
 apiVersion: v1
 kind: Service
@@ -60,11 +47,33 @@ spec:
     - protocol: TCP
       port: 5432
       targetPort: 5432
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  password: c2Fkb2s= # sadok in base64
+
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-deployment
+  name: backend
 spec:
   replicas: 1
   selector:
@@ -82,32 +91,21 @@ spec:
             - containerPort: 8000
           env:
             - name: DATABASE_URL
-              value: "postgres://testuser:testpassword@postgres-service:5432/testdb"
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_DB
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_USER
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
+              value: "postgres://sadok:sadok@postgres-service:5432/sana3ti"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "sana3ti.settings"
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: backend-service
 spec:
+  type: NodePort
   selector:
     app: backend
   ports:
     - protocol: TCP
-      port: 80
+      port: 8000
       targetPort: 8000
-  type: LoadBalancer
+      nodePort: 30007
