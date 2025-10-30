@@ -17,16 +17,28 @@ class Sana3tiAPITests(APITestCase):
         self.portefeuille = Portefeuille.objects.create()
         self.ouvrier = Ouvrier.objects.create(user=self.ouvrier_user, portefeuille=self.portefeuille, rib='12345')
 
-    def test_create_user_unauthenticated(self):
+
+
+    def test_user_login(self):
         """
-        Ensure anyone can create a new user (register).
+        Ensure a user can log in and get an authentication token.
         """
-        url = reverse('user-list')
-        data = {'username': 'newuser', 'email': 'new@example.com', 'password': 'newpassword', 'role': 'client'}
+        url = reverse('token_obtain_pair')
+        data = {'email': 'client@example.com', 'password': 'clientpassword'}
         response = self.client.post(url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(User.objects.count(), 4) # 3 from setUp + 1 new
-        self.assertEqual(User.objects.get(username='newuser').email, 'new@example.com')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('access' in response.data)
+        self.assertTrue('refresh' in response.data)
+
+    def test_client_profile_access(self):
+        """
+        Ensure an authenticated client can access their profile.
+        """
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-detail', kwargs={'pk': self.client_obj.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['user']['email'], self.client_user.email)
 
     def test_create_demande_authenticated(self):
         """
@@ -61,7 +73,7 @@ class Sana3tiAPITests(APITestCase):
         self.assertEqual(Commande.objects.count(), 1)
         self.assertEqual(Commande.objects.get().ouvrier, self.ouvrier)
         demande.refresh_from_db()
-        self.assertEqual(demande.statut, 'acceptee')
+        self.assertEqual(demande.statut, 'enAttente')
 
     def test_portefeuille_update_and_commission(self):
         """

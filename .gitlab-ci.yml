@@ -1,0 +1,31 @@
+image: python:3.9
+
+services:
+  - postgres:latest
+
+variables:
+  POSTGRES_DB: testdb
+  POSTGRES_USER: testuser
+  POSTGRES_PASSWORD: testpassword
+  DATABASE_URL: "postgres://testuser:testpassword@postgres:5432/testdb"
+
+stages:
+  - test
+  - build
+
+before_script:
+  - pip install -r requirements.txt
+
+test:
+  stage: test
+  script:
+    - python manage.py test
+
+build:
+  stage: build
+  script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+    - docker build -t $DOCKER_USER/sana3ti-backend .
+    - docker push $DOCKER_USER/sana3ti-backend
+  only:
+    - main
