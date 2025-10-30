@@ -1,23 +1,24 @@
-image: docker:24.0.2  # Has Docker CLI installed
-
-services:
-  - docker:dind
-
 stages:
   - test
   - build
 
-before_script:
-  - apk add --no-cache python3 py3-pip
-  - pip install -r requirements.txt
+
 
 test:
   stage: test
+  image: python:3.9
+  before_script:
+    - pip install -r requirements.txt
   script:
-    - python3 manage.py test
+    - python manage.py test
 
 build:
   stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
   script:
     - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
     - docker build -t $DOCKER_USER/sana3ti-backend .
