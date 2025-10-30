@@ -1,31 +1,30 @@
-image: python:3.9
+image: docker:25
 
 services:
-  - postgres:latest
+  - docker:dind
 
 variables:
-  POSTGRES_DB: testdb
-  POSTGRES_USER: testuser
-  POSTGRES_PASSWORD: testpassword
-  DATABASE_URL: "postgres://testuser:testpassword@postgres:5432/testdb"
+  DOCKER_DRIVER: overlay2
 
 stages:
   - test
   - build
 
 before_script:
+  - apk add --no-cache python3 py3-pip python3-dev build-base jpeg-dev zlib-dev libffi-dev openssl-dev
+  - python3 -m pip install --upgrade pip
   - pip install -r requirements.txt
 
 test:
   stage: test
   script:
-    - python manage.py test
+    - python3 manage.py test
 
 build:
   stage: build
   script:
-    - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
-    - docker build -t $DOCKER_USER/sana3ti-backend .
-    - docker push $DOCKER_USER/sana3ti-backend
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+    - docker build -t "$DOCKER_USER/sana3ti-backend" .
+    - docker push "$DOCKER_USER/sana3ti-backend"
   only:
     - main
