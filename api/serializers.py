@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import (
     User, Client, Ouvrier, Admin, Demande, Commande,
-    Avis, Portefeuille, Signalement, Photo
+    Avis, Portefeuille, Signalement, Photo, Post, Like
 )
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -191,3 +191,35 @@ class SignalementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Signalement
         fields = '__all__'
+
+class LikeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Like
+        fields = '__all__'
+
+class PostSerializer(serializers.ModelSerializer):
+    ouvrier = OuvrierSerializer(read_only=True)
+    photos = PhotoSerializer(many=True, required=False) # Allow photos to be uploaded
+    likes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = ('id', 'ouvrier', 'text', 'photos', 'created_at', 'likes_count', 'is_liked')
+
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Like.objects.filter(post=obj, user=request.user).exists()
+        return False
+
+    def create(self, validated_data):
+        photos_data = self.context.get('request').FILES.getlist('photos')
+        post = Post.objects.create(**validated_data)
+        for photo_data in photos_data:
+            photo = Photo.objects.create(image=photo_data)
+            post.photos.add(photo)
+        return post

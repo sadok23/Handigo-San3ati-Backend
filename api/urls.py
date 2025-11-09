@@ -6,7 +6,8 @@ from .views import (
     DemandeViewSet, CommandeViewSet, AvisViewSet,
     PortefeuilleViewSet, SignalementViewSet, PhotoViewSet,
     ClientRegistrationViewSet, ClientLoginView,
-    OuvrierRegistrationViewSet, OuvrierLoginView
+    OuvrierRegistrationViewSet, OuvrierLoginView,
+    PostViewSet, LikeViewSet
 )
 from .serializers import CustomTokenObtainPairSerializer # Import custom serializer
 from .views import TestNotificationView
@@ -25,6 +26,8 @@ router.register(r'avis', AvisViewSet)
 router.register(r'portefeuilles', PortefeuilleViewSet)
 router.register(r'signalements', SignalementViewSet)
 router.register(r'photos', PhotoViewSet)
+router.register(r'posts', PostViewSet, basename='post')
+router.register(r'likes', LikeViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -10,14 +10,15 @@ from django.views.decorators.csrf import csrf_exempt # Import csrf_exempt
 from django.utils.decorators import method_decorator # Import method_decorator
 from .models import (
     User, Client, Ouvrier, Admin, Demande, Commande,
-    Avis, Portefeuille, Signalement, Photo
+    Avis, Portefeuille, Signalement, Photo, Post, Like
 )
 from django.db import models # Import models for aggregation
 from .serializers import (
     UserSerializer, ClientSerializer, OuvrierSerializer, AdminSerializer,
     DemandeSerializer, CommandeSerializer, AvisSerializer,
     PortefeuilleSerializer, SignalementSerializer, PhotoSerializer,
-    ClientRegistrationSerializer, OuvrierRegistrationSerializer, CustomTokenObtainPairSerializer
+    ClientRegistrationSerializer, OuvrierRegistrationSerializer, CustomTokenObtainPairSerializer,
+    PostSerializer, LikeSerializer
 )
 import requests
 from django.conf import settings
@@ -736,6 +737,96 @@ class SignalementViewSet(viewsets.ModelViewSet):
 class PhotoViewSet(viewsets.ModelViewSet):
     queryset = Photo.objects.all()
     serializer_class = PhotoSerializer
+    permission_classes = [IsAuthenticated]
+
+from datetime import datetime, timedelta
+
+class PostViewSet(viewsets.ModelViewSet):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if hasattr(user, 'ouvrier_profile'):
+            queryset = Post.objects.filter(ouvrier=user.ouvrier_profile)
+        else:
+            queryset = Post.objects.all()
+
+        ouvrier_id = self.request.query_params.get('ouvrier_id')
+        ordering = self.request.query_params.get('ordering')
+        period = self.request.query_params.get('period')
+
+        if ouvrier_id:
+            queryset = queryset.filter(ouvrier__id=ouvrier_id)
+
+        if period:
+            now = datetime.now()
+            if period == 'month':
+                start_date = now - timedelta(days=30)
+            elif period == 'year':
+                start_date = now - timedelta(days=365)
+            else:
+                start_date = None
+            
+            if start_date:
+                queryset = queryset.filter(created_at__gte=start_date)
+
+        if ordering:
+            if ordering == 'likes':
+                queryset = queryset.annotate(likes_count=models.Count('likes')).order_by('-likes_count')
+            else:
+                queryset = queryset.order_by(ordering)
+        else:
+            queryset = queryset.order_by('-created_at')
+
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Extract validated data
+        text = serializer.validated_data.get('text')
+        
+        # Ensure the user has an 'ouvrier_profile'
+        if not hasattr(request.user, 'ouvrier_profile'):
+            return Response(
+                {"error": "User does not have an ouvrier profile."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Create the Post instance
+        post = Post.objects.create(
+            ouvrier=request.user.ouvrier_profile,
+            text=text
+        )
+        
+        # Handle photo uploads
+        photos_data = request.FILES.getlist('photos')
+        if photos_data:
+            for photo_data in photos_data:
+                photo = Photo.objects.create(image=photo_data)
+                post.photos.add(photo)
+        
+        # Re-serialize the instance to include photos
+        response_serializer = self.get_serializer(post)
+        headers = self.get_success_headers(response_serializer.data)
+        
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=True, methods=['post'])
+    def like(self, request, pk=None):
+        post = self.get_object()
+        user = request.user
+        like, created = Like.objects.get_or_create(post=post, user=user)
+        if not created:
+            like.delete()
+            return Response({'status': 'unliked'})
+        return Response({'status': 'liked'})
+
+class LikeViewSet(viewsets.ModelViewSet):
+    queryset = Like.objects.all()
+    serializer_class = LikeSerializer
     permission_classes = [IsAuthenticated]
 
 
